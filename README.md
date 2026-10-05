@@ -2,6 +2,8 @@
 
 A small React page (list of books, add a book, All / Private switch, sticky header with a private-books counter) refactored so that **all logic lives outside the views and is covered by tests that never render anything**.
 
+**Live demo:** <https://fast-test-books.vercel.app/>
+
 Stack: React 19, MobX 7 + mobx-react, TypeScript, Vite, Vitest, fast-check.
 
 ## Run it
