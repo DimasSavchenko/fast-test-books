@@ -1,8 +1,20 @@
-.App {
-  font-family: arial;
-  text-align: center;
-}
-
 body {
   font-family: arial;
+}
+
+.header {
+  position: sticky;
+  top: 0;
+  padding: 8px 0;
+  background: white;
+  border-bottom: 1px solid lightgray;
+}
+
+.status {
+  margin: 8px 0;
+  line-height: 32px;
+}
+
+.status button {
+  margin-left: 8px;
 }
