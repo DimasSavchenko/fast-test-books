@@ -1,11 +1,11 @@
 import fc from "fast-check";
 import { describe, it } from "vitest";
 
-import { anyBooksDto } from "../test/BooksArbitraries";
-import { createBooksTestHarness } from "../test/BooksTestHarness";
-import { HeaderController } from "./Header.controller";
+import { anyBooksDto } from "../../test/BooksArbitraries";
+import { createBooksTestHarness } from "../../test/BooksTestHarness";
+import { PrivateBooksCounterController } from "./PrivateBooksCounter.controller";
 
-describe("HeaderController properties", () => {
+describe("PrivateBooksCounterController properties", () => {
   it("counts private books only, whatever the api returns", async () => {
     await fc.assert(
       fc.asyncProperty(
@@ -15,7 +15,7 @@ describe("HeaderController properties", () => {
           const { booksRepository, respondWithBooks } =
             createBooksTestHarness();
           respondWithBooks(allBooksDto, privateBooksDto);
-          const controller = new HeaderController(booksRepository);
+          const controller = new PrivateBooksCounterController(booksRepository);
 
           await booksRepository.loadBooks();
 

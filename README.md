@@ -39,15 +39,67 @@ View ◀─VM (observable)─ Controller ◀──PM── Repository ◀──D
 | Repository | [Books.repository.ts](src/Books/Books.repository.ts) | Holds the shared programmers' model as MobX observables, maps DTO to PM, talks to the gateway. |
 | Gateway | [ApiGateway.ts](src/Shared/ApiGateway.ts) | HTTP only. The single thing faked in tests. |
 
+### Folders
+
+Current layout:
+
 ```
 src/
-  Shared/          reusable: ApiGateway, config, MobX config, useController
-  Books/           feature: repository, types
-    BooksList/     list + All / Private switch
-    AddBook/       creation form
-  Header/          application-wide sticky header
-  test/            test harness and fast-check generators
+  App.tsx                    composition: puts the header, the form and the list together
+  Shared/                    reusable: ApiGateway, config, MobX config, useController
+  Header/                    sticky header layout, renders whatever it is given
+  Books/                     feature: repository, types
+    BooksList/               list + All / Private switch
+    AddBook/                 creation form
+    PrivateBooksCounter/     "Your books: N"
+  test/                      test harness and fast-check generators
 ```
+
+The header knows nothing about books. It is a layout component that takes children; the counter belongs to the Books feature, and `App` places one inside the other:
+
+```tsx
+<HeaderView>
+  <PrivateBooksCounterView />
+</HeaderView>
+```
+
+### Target folder structure
+
+The layout above still mixes two principles: `Books` is a feature, while `Shared`, `Header` and `test` are technical roles, and nothing says who may import whom. The structure this codebase should grow into is split **by feature**, with one direction of dependencies:
+
+```
+src/
+  main.tsx                   entry point
+  App/                       composition: the only place that knows several features
+    App.tsx
+    styles.css
+  Features/
+    Books/                   everything about books
+      index.ts               the only door into the feature
+      Books.repository.ts
+      Books.types.ts
+      BooksList/
+      AddBook/
+      PrivateBooksCounter/
+      testing/               harness and generators of this feature
+  Shared/                    reusable, knows nothing about features
+    ApiGateway.ts
+    config.ts
+    mobx.config.ts
+    useController.ts
+    Header/                  layout components such as the sticky header
+```
+
+**App → Features → Shared**, never the other way:
+
+- `Shared` imports nothing from `App` or `Features`. The header lives here because it is layout without domain knowledge.
+- A feature imports from `Shared` and from itself. It does not import `App` or another feature; what two features need in common moves down to `Shared`.
+- Code outside a feature uses it through its `index.ts` only, so the feature's internals (repository, controllers) can change freely.
+- Test helpers live with the feature they serve.
+
+The rule should be enforced by tooling rather than by agreement: an import-boundaries lint rule, or a test that reads the imports of `src` and fails on a violation.
+
+The move itself is not applied in this repository: it renames almost every file, which would hide the two behavioural changes made after the review (the `ensureLoaded` fix and the header/counter split) in a diff of pure renames.
 
 ### How the acceptance criteria are met
 
@@ -59,14 +111,14 @@ src/
 
 ### Lifecycle
 
-[useController](src/Shared/useController.ts) creates a local controller once per view, calls `init()` on mount and `dispose()` on unmount. `dispose()` is mandatory in the `Controller` interface. `AddBookController` invalidates its pending request on dispose, so a late response never writes into a dead controller. The list and header controllers hold no request state of their own: loading and the stale-response guard live in the repository. Both ask for books through `ensureLoaded()`, which starts a load only when none is in flight, so React StrictMode's double mount and two controllers mounting together still produce a single load.
+[useController](src/Shared/useController.ts) creates a local controller once per view, calls `init()` on mount and `dispose()` on unmount. `dispose()` is mandatory in the `Controller` interface. `AddBookController` invalidates its pending request on dispose, so a late response never writes into a dead controller. The list and counter controllers hold no request state of their own: loading and the stale-response guard live in the repository. Both ask for books through `ensureLoaded()`, which starts a load only when none is in flight, so React StrictMode's double mount and two controllers mounting together still produce a single load.
 
 ## Tests
 
-83 tests, node environment, no DOM and no rendering.
+84 tests, node environment, no DOM and no rendering.
 
 - **Example tests** (`*.controller.test.ts`): controller and repository are real, only the gateway is faked ([BooksTestHarness.ts](src/test/BooksTestHarness.ts)). A test feeds DTOs in and asserts on the view model and on what was sent to the gateway.
-- **Property tests** (`*.property.test.ts`, fast-check): rules that must hold for any input, for example "Add is enabled exactly when both fields have visible text", "exactly one switch option is selected after any sequence of switches", "the header counts private books only".
+- **Property tests** (`*.property.test.ts`, fast-check): rules that must hold for any input, for example "Add is enabled exactly when both fields have visible text", "exactly one switch option is selected after any sequence of switches", "the counter counts private books only".
 - **Render-count tests**: an `autorun` standing in for the view checks that a completed load and a switch change notify the view the expected number of times.
 - [Books.repository.test.ts](src/Books/Books.repository.test.ts) covers overlapping loads (only the latest one is applied) and `ensureLoaded()` (a caller that joins a load in flight completes together with it, not before).
 - [ApiGateway.test.ts](src/Shared/ApiGateway.test.ts) covers the gateway with a stubbed `fetch`.
@@ -82,7 +134,7 @@ Not covered on purpose: the views. They hold no logic, so there are no snapshot 
 - **"Not added" and "not refreshed" are different failures.** If the POST fails, the form keeps its values and shows an error. If the POST succeeds and only the refresh fails, the form is cleared (no duplicate on retry) and the affected list reports that it may be outdated.
 - **Controllers receive the input event** as `{ target: { value: string } }`, a structural type with no React import. This keeps even the event unpacking under fast tests, at the price of the controller knowing that shape.
 - **Books created by a user come back without `id`**, so the repository builds render keys itself (`id-111` or `position-3`).
-- **Any controller can ask for books.** The list and the application-wide header both call `ensureLoaded()` on mount, so the header gets its counter even on a page without the list, and they never duplicate a load. `ensureLoaded()` returns the promise of the load in flight, so whoever awaits it can rely on the books being there afterwards; a load replaced by a newer one likewise completes only together with the latest. A healthy list is refreshed silently after a creation; "Loading books..." is shown only when there is nothing valid to show yet. Before the first load completes the header shows `Your books: ...`, and `Your books: -` if the private list failed to load.
+- **Any controller can ask for books.** The list and the private-books counter both call `ensureLoaded()` on mount, so the counter works even on a page without the list, and they never duplicate a load. `ensureLoaded()` returns the promise of the load in flight, so whoever awaits it can rely on the books being there afterwards; a load replaced by a newer one likewise completes only together with the latest. A healthy list is refreshed silently after a creation; "Loading books..." is shown only when there is nothing valid to show yet. Before the first load completes the header shows `Your books: ...`, and `Your books: -` if the private list failed to load.
 
 ## CI
 
