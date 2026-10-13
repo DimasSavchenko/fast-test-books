@@ -58,3 +58,16 @@ export function createDeferred<T>() {
 
   return { promise, resolve, reject };
 }
+
+// Lets every promise callback that is already queued run.
+export const flushPromises = () =>
+  new Promise<void>((resolve) => setTimeout(resolve));
+
+export function trackSettled<T>(promise: Promise<T>) {
+  let settled = false;
+  const tracked = promise.finally(() => {
+    settled = true;
+  });
+
+  return { promise: tracked, isSettled: () => settled };
+}

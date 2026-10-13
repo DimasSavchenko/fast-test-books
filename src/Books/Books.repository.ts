@@ -37,11 +37,12 @@ export class BooksRepository {
   isLoading = false;
 
   private requestId = 0;
+  private latestLoad: Promise<void> | null = null;
 
   constructor(private readonly httpGateway: HttpGateway) {
     makeAutoObservable<
       BooksRepository,
-      "httpGateway" | "requestId" | "getBooks"
+      "httpGateway" | "requestId" | "latestLoad" | "getBooks" | "requestBooks"
     >(
       this,
       {
@@ -49,7 +50,9 @@ export class BooksRepository {
         privateBooksList: observableRef,
         httpGateway: false,
         requestId: false,
+        latestLoad: false,
         getBooks: false,
+        requestBooks: false,
       },
       { autoBind: true },
     );
@@ -59,29 +62,36 @@ export class BooksRepository {
     return this.privateBooksList.books.length;
   }
 
-  // Lets any controller ask for books without knowing who else did: a load is started
-  // only when there is none in flight and something is still missing or failed.
-  async ensureLoaded(): Promise<void> {
+  // Lets any controller ask for books without knowing who else did. Whoever awaits it
+  // gets the books: a caller that arrives while a load is in flight waits for that load.
+  ensureLoaded(): Promise<void> {
+    if (this.latestLoad) return this.latestLoad;
+
     const lists = [this.allBooksList, this.privateBooksList];
     const isFresh = lists.every(
       (list) => list.hasLoaded && !list.hasLoadFailed,
     );
-    if (this.isLoading || isFresh) return;
-
-    await this.loadBooks();
+    return isFresh ? Promise.resolve() : this.loadBooks();
   }
 
-  async loadBooks(): Promise<void> {
-    const requestId = ++this.requestId;
+  loadBooks(): Promise<void> {
+    const load = this.requestBooks(++this.requestId);
+    this.latestLoad = load;
     this.isLoading = true;
+    return load;
+  }
 
+  private async requestBooks(requestId: number): Promise<void> {
     const [allBooksResult, privateBooksResult] = await Promise.allSettled([
       this.getBooks("/"),
       this.getBooks("/private"),
     ]);
 
-    // a newer loadBooks() made this response stale: only the latest one is applied
-    if (requestId !== this.requestId) return;
+    // a newer loadBooks() made this response stale: only the latest one is applied,
+    // and this call completes together with it, not before
+    if (requestId !== this.requestId) return this.latestLoad ?? undefined;
+
+    this.latestLoad = null;
     runInAction(() => {
       this.allBooksList = toBooksListPm(this.allBooksList, allBooksResult);
       this.privateBooksList = toBooksListPm(

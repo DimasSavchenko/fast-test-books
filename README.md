@@ -63,12 +63,12 @@ src/
 
 ## Tests
 
-76 tests, node environment, no DOM and no rendering.
+83 tests, node environment, no DOM and no rendering.
 
 - **Example tests** (`*.controller.test.ts`): controller and repository are real, only the gateway is faked ([BooksTestHarness.ts](src/test/BooksTestHarness.ts)). A test feeds DTOs in and asserts on the view model and on what was sent to the gateway.
 - **Property tests** (`*.property.test.ts`, fast-check): rules that must hold for any input, for example "Add is enabled exactly when both fields have visible text", "exactly one switch option is selected after any sequence of switches", "the header counts private books only".
 - **Render-count tests**: an `autorun` standing in for the view checks that a completed load and a switch change notify the view the expected number of times.
-- [Books.repository.test.ts](src/Books/Books.repository.test.ts) covers overlapping loads: only the latest one is applied.
+- [Books.repository.test.ts](src/Books/Books.repository.test.ts) covers overlapping loads (only the latest one is applied) and `ensureLoaded()` (a caller that joins a load in flight completes together with it, not before).
 - [ApiGateway.test.ts](src/Shared/ApiGateway.test.ts) covers the gateway with a stubbed `fetch`.
 
 Not covered on purpose: the views. They hold no logic, so there are no snapshot or render tests; the wiring between a view and its controller is checked by the type checker only.
@@ -82,7 +82,7 @@ Not covered on purpose: the views. They hold no logic, so there are no snapshot 
 - **"Not added" and "not refreshed" are different failures.** If the POST fails, the form keeps its values and shows an error. If the POST succeeds and only the refresh fails, the form is cleared (no duplicate on retry) and the affected list reports that it may be outdated.
 - **Controllers receive the input event** as `{ target: { value: string } }`, a structural type with no React import. This keeps even the event unpacking under fast tests, at the price of the controller knowing that shape.
 - **Books created by a user come back without `id`**, so the repository builds render keys itself (`id-111` or `position-3`).
-- **Any controller can ask for books.** The list and the application-wide header both call `ensureLoaded()` on mount, so the header gets its counter even on a page without the list, and they never duplicate a load. A healthy list is refreshed silently after a creation; "Loading books..." is shown only when there is nothing valid to show yet. Before the first load completes the header shows `Your books: ...`, and `Your books: -` if the private list failed to load.
+- **Any controller can ask for books.** The list and the application-wide header both call `ensureLoaded()` on mount, so the header gets its counter even on a page without the list, and they never duplicate a load. `ensureLoaded()` returns the promise of the load in flight, so whoever awaits it can rely on the books being there afterwards; a load replaced by a newer one likewise completes only together with the latest. A healthy list is refreshed silently after a creation; "Loading books..." is shown only when there is nothing valid to show yet. Before the first load completes the header shows `Your books: ...`, and `Your books: -` if the private list failed to load.
 
 ## CI
 
