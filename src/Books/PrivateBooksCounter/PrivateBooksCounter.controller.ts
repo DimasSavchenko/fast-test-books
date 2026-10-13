@@ -1,10 +1,10 @@
 import { makeAutoObservable } from "mobx";
 
-import { BooksRepository } from "../Books/Books.repository";
+import { BooksRepository } from "../Books.repository";
 
-export class HeaderController {
+export class PrivateBooksCounterController {
   constructor(private readonly booksRepository: BooksRepository) {
-    makeAutoObservable<HeaderController, "booksRepository">(
+    makeAutoObservable<PrivateBooksCounterController, "booksRepository">(
       this,
       { booksRepository: false },
       { autoBind: true },
@@ -19,7 +19,7 @@ export class HeaderController {
     return hasLoadFailed ? "Your books: -" : "Your books: ...";
   }
 
-  // the header is application-wide: it must get its counter even on a page without the list
+  // the counter can be placed anywhere, also on a page without the list, so it asks for books itself
   init(): Promise<void> {
     return this.booksRepository.ensureLoaded();
   }

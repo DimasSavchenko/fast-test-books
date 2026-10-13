@@ -1,25 +1,25 @@
 import { describe, expect, it } from "vitest";
 
-import { AddBookController } from "../Books/AddBook/AddBook.controller";
-import { BooksListController } from "../Books/BooksList/BooksList.controller";
-import { BookDto } from "../Books/Books.types";
+import { AddBookController } from "../AddBook/AddBook.controller";
+import { BooksListController } from "../BooksList/BooksList.controller";
+import { BookDto } from "../Books.types";
 import {
   allBooksDtoStub,
   createBooksTestHarness,
   createDeferred,
   createSubmitEvent,
   privateBooksDtoStub,
-} from "../test/BooksTestHarness";
-import { HeaderController } from "./Header.controller";
+} from "../../test/BooksTestHarness";
+import { PrivateBooksCounterController } from "./PrivateBooksCounter.controller";
 
 function setup() {
   const harness = createBooksTestHarness();
-  const controller = new HeaderController(harness.booksRepository);
+  const controller = new PrivateBooksCounterController(harness.booksRepository);
 
   return { ...harness, controller };
 }
 
-describe("HeaderController", () => {
+describe("PrivateBooksCounterController", () => {
   it("shows the loading placeholder instead of a number until books are loaded", async () => {
     const { controller, booksRepository, httpGateway } = setup();
     const response = createDeferred<BookDto[]>();
@@ -43,6 +43,20 @@ describe("HeaderController", () => {
     await controller.init();
 
     expect(httpGateway.get).toHaveBeenCalledWith("/private");
+    expect(controller.privateBooksLabel).toBe("Your books: 1");
+  });
+
+  it("has the counter right after its own init, even when the list started the load", async () => {
+    const { controller, booksRepository, httpGateway } = setup();
+    const response = createDeferred<BookDto[]>();
+    httpGateway.get.mockReturnValue(response.promise);
+    const listController = new BooksListController(booksRepository);
+    void listController.init();
+
+    const initializing = controller.init();
+    response.resolve(privateBooksDtoStub);
+    await initializing;
+
     expect(controller.privateBooksLabel).toBe("Your books: 1");
   });
 

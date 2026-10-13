@@ -1,11 +1,6 @@
-import { observer } from "mobx-react";
+import { ReactNode } from "react";
 
-import booksRepository from "../Books/Books.repository";
-import { useController } from "../Shared/useController";
-import { HeaderController } from "./Header.controller";
-
-export const HeaderView = observer(function HeaderView() {
-  const controller = useController(() => new HeaderController(booksRepository));
-
-  return <header className="header">{controller.privateBooksLabel}</header>;
-});
+// Application-wide sticky header. It knows nothing about features: the app decides what goes in.
+export function HeaderView({ children }: { children: ReactNode }) {
+  return <header className="header">{children}</header>;
+}
